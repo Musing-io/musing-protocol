@@ -146,16 +146,16 @@ contract UserUpvote is Context, Ownable {
 
   function claim() public returns(bool) {
     uint256 reward = computeReward(_msgSender());
-    // uint256 rewardBalance = IERC20(mscToken).balanceOf(rewardAddress);
+    uint256 rewardBalance = IERC20(mscToken).balanceOf(rewardAddress);
     require(reward > 0, "No rewards to claim.");
-    // require(reward <= rewardBalance, "No available funds.");
+    require(reward <= rewardBalance, "No available funds.");
 
     uint256 newRewardTally = _votes[_msgSender()].totalAmount.div(10**18).mul(RewardPerToken);
     _rewardTally[_msgSender()] = int(newRewardTally);
 
-    // uint256 allowance = IERC20(mscToken).allowance(address(this), _msgSender());
-    // IERC20(mscToken).approve(rewardAddress, allowance + reward);
-    // IERC20(mscToken).transferFrom(rewardAddress, _msgSender(), reward);
+    uint256 allowance = IERC20(mscToken).allowance(address(this), _msgSender());
+    IERC20(mscToken).approve(rewardAddress, allowance.add(reward));
+    IERC20(mscToken).transferFrom(rewardAddress, _msgSender(), reward);
 
     emit Claim(_msgSender(), reward);
     return true;
