@@ -131,12 +131,13 @@ contract UserUpvote is Context, Ownable {
     rewardAddress = _newAddress;
   }
 
-  function distribute(uint256 rewards) external onlyOwner {
+  function distribute(uint256 rewards) external onlyOwner returns (bool) {
     if (TotalLock > 0) {
       RewardPerToken = RewardPerToken.add(rewards.div(TotalLock.div(10**16)).mul(10**2));
     }
 
     emit Distribute(rewards);
+    return true;
   }
 
   function checkRewards(address user) public view returns(uint256) {
