@@ -118,6 +118,8 @@ contract EndorseUser is Context, Ownable {
     require(amount > 0 && amount <= IERC20(mscToken).balanceOf(_msgSender()), "Invalid amount or not enough balance");
     require(!_voters[_msgSender()].votes[user].upvoted, "Already upvoted to this user");
 
+    _safeTransfer(_msgSender(), lockAddress, amount);
+
     _voters[_msgSender()].totalVote += 1;
     _voters[_msgSender()].totalLock = _voters[_msgSender()].totalLock.add(amount);
     _voters[_msgSender()].votes[user].upvoted = true;
@@ -125,8 +127,6 @@ contract EndorseUser is Context, Ownable {
 
     _votes[user].totalVote += 1;
     _votes[user].totalAmount = _votes[user].totalAmount.add(amount);
-
-    _safeTransfer(_msgSender(), lockAddress, amount);
 
     TotalLock = TotalLock.add(amount);
     addRewardTally(user, amount);
@@ -140,14 +140,14 @@ contract EndorseUser is Context, Ownable {
     require(_voters[_msgSender()].votes[user].upvoted, "You did not upvote this user");
 
     uint256 amount = _voters[_msgSender()].votes[user].amount;
+    _safeTransfer(lockAddress, _msgSender(), amount);
+
     _voters[_msgSender()].totalVote -= 1;
     _voters[_msgSender()].totalLock = _voters[_msgSender()].totalLock.sub(amount);
     _voters[_msgSender()].votes[user].upvoted = false;
 
     _votes[user].totalVote -= 1;
     _votes[user].totalAmount = _votes[user].totalAmount.sub(amount);
-
-    _safeTransfer(lockAddress, _msgSender(), amount);
 
     TotalLock = TotalLock.sub(amount);
     subRewardTally(user, amount);
@@ -182,10 +182,10 @@ contract EndorseUser is Context, Ownable {
     require(reward > 0, "No rewards to claim.");
     require(reward <= rewardBalance, "No available funds.");
 
+    _safeTransfer(rewardAddress, _msgSender(), reward);
+
     uint256 newRewardTally = _votes[_msgSender()].totalAmount.div(10**18).mul(RewardPerToken);
     _rewardTally[_msgSender()] = int(newRewardTally);
-
-    _safeTransfer(rewardAddress, _msgSender(), reward);
 
     emit Claimed(_msgSender(), reward);
     return true;
@@ -196,6 +196,8 @@ contract EndorseUser is Context, Ownable {
     require(amount > 0 && amount <= IERC20(mscToken).balanceOf(_msgSender()), "Invalid amount or not enough balance");
     require(!_downvoters[_msgSender()].downvotes[user].downvoted, "Already downvoted to this user");
 
+    _safeTransfer(_msgSender(), flagAddress, amount);
+
     _downvoters[_msgSender()].totalDownvote += 1;
     _downvoters[_msgSender()].totalAmount = _downvoters[_msgSender()].totalAmount.add(amount);
     _downvoters[_msgSender()].downvotes[user].downvoted = true;
@@ -203,8 +205,6 @@ contract EndorseUser is Context, Ownable {
 
     _downvotes[user].totalDownvote += 1;
     _downvotes[user].totalAmount = _downvotes[user].totalAmount.add(amount);
-
-    _safeTransfer(_msgSender(), flagAddress, amount);
     TotalDownvoteLock = TotalDownvoteLock.add(amount);
 
     emit Flagged(_msgSender(), user, amount);
@@ -216,14 +216,14 @@ contract EndorseUser is Context, Ownable {
     require(_downvoters[_msgSender()].downvotes[user].downvoted, "You did not flag this user");
 
     uint256 amount = _downvoters[_msgSender()].downvotes[user].amount;
+    _safeTransfer(flagAddress, _msgSender(), amount);
+
     _downvoters[_msgSender()].totalDownvote -= 1;
     _downvoters[_msgSender()].totalAmount = _downvoters[_msgSender()].totalAmount.sub(amount);
     _downvoters[_msgSender()].downvotes[user].downvoted = false;
 
     _downvotes[user].totalDownvote -= 1;
     _downvotes[user].totalAmount = _downvotes[user].totalAmount.sub(amount);
-
-    _safeTransfer(flagAddress, _msgSender(), amount);
     TotalDownvoteLock = TotalDownvoteLock.sub(amount);
 
     emit Unflagged(_msgSender(), user, amount);
