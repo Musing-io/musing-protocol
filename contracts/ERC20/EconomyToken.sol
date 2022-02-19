@@ -1,54 +1,57 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Pausable.sol";
-import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "../lib/ERC20Initializable.sol";
 
-contract EconomyToken is ERC20, Ownable, AccessControlEnumerable, ERC20Burnable, ERC20Pausable {
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+contract EconomyToken is ERC20Initializable {
+    bool private _initialized; // false by default
+    address private _owner; // Ownable is implemented manually to meke it compatible with `initializable`
 
     mapping (address => bool) public AllowedContract;
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    constructor(string memory _name, string memory _symbol, uint256 _initialSupply) ERC20(_name, _symbol) {
-        _mint(msg.sender, _initialSupply);
-        _setupRole(DEFAULT_ADMIN_ROLE, _msgSender());
+    function init(string memory name_, string memory symbol_) external {
+        require(_initialized == false, "CONTRACT_ALREADY_INITIALIZED");
 
-        _setupRole(MINTER_ROLE, _msgSender());
-        _setupRole(PAUSER_ROLE, _msgSender());
+        _name = name_;
+        _symbol = symbol_;
+        _owner = _msgSender();
+
+        _initialized = true;
+
+        emit OwnershipTransferred(address(0), _owner);
     }
 
-    function mint(address to, uint256 amount) public virtual {
-        require(hasRole(MINTER_ROLE, _msgSender()), "Must have minter role to mint");
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        _;
+    }
+
+    function renounceOwnership() public onlyOwner {
+        emit OwnershipTransferred(_owner, address(0));
+        _owner = address(0);
+    }
+
+    function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }
 
-    function pause() public virtual {
-        require(hasRole(PAUSER_ROLE, _msgSender()), "Must have pauser role to pause");
-        _pause();
+    // NOTE:
+    // Disable direct burn function call because it can affect on bonding curve
+    // Users can just send the tokens to the token contract address
+    // for the same burning effect without changing the totalSupply
+    function burnFrom(address account, uint256 amount) public onlyOwner {
+        uint256 currentAllowance = allowance(account, _msgSender());
+        require(currentAllowance >= amount, "ERC20: burn amount exceeds allowance");
+        _approve(account, _msgSender(), currentAllowance - amount);
+        _burn(account, amount);
     }
 
-    function unpause() public virtual {
-        require(hasRole(PAUSER_ROLE, _msgSender()), "Must have pauser role to unpause");
-        _unpause();
-    }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual override(ERC20, ERC20Pausable) {
-        super._beforeTokenTransfer(from, to, amount);
-    }
-
-    function transferFrom(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) public virtual override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
         _transfer(sender, recipient, amount);
 
         if (sender == _msgSender() || AllowedContract[_msgSender()]) {
