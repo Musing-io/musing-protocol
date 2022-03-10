@@ -24,6 +24,7 @@ contract EndorseUser is Context, Ownable {
   struct Vote {
     bool upvoted;
     uint256 amount;
+    uint256 date;
   }
 
   struct Voter {
@@ -35,6 +36,7 @@ contract EndorseUser is Context, Ownable {
   struct Downvote {
     bool downvoted;
     uint256 amount;
+    uint256 date;
   }
 
   struct Downvoter {
@@ -124,6 +126,7 @@ contract EndorseUser is Context, Ownable {
     _voters[_msgSender()].totalLock = _voters[_msgSender()].totalLock.add(amount);
     _voters[_msgSender()].votes[user].upvoted = true;
     _voters[_msgSender()].votes[user].amount = amount;
+    _voters[_msgSender()].votes[user].date = block.timestamp;
 
     _votes[user].totalVote += 1;
     _votes[user].totalAmount = _votes[user].totalAmount.add(amount);
@@ -145,6 +148,7 @@ contract EndorseUser is Context, Ownable {
     _voters[_msgSender()].totalVote -= 1;
     _voters[_msgSender()].totalLock = _voters[_msgSender()].totalLock.sub(amount);
     _voters[_msgSender()].votes[user].upvoted = false;
+    _voters[_msgSender()].votes[user].date = block.timestamp;
 
     _votes[user].totalVote -= 1;
     _votes[user].totalAmount = _votes[user].totalAmount.sub(amount);
@@ -202,6 +206,7 @@ contract EndorseUser is Context, Ownable {
     _downvoters[_msgSender()].totalAmount = _downvoters[_msgSender()].totalAmount.add(amount);
     _downvoters[_msgSender()].downvotes[user].downvoted = true;
     _downvoters[_msgSender()].downvotes[user].amount = amount;
+    _downvoters[_msgSender()].downvotes[user].date = block.timestamp;
 
     _downvotes[user].totalDownvote += 1;
     _downvotes[user].totalAmount = _downvotes[user].totalAmount.add(amount);
@@ -221,6 +226,7 @@ contract EndorseUser is Context, Ownable {
     _downvoters[_msgSender()].totalDownvote -= 1;
     _downvoters[_msgSender()].totalAmount = _downvoters[_msgSender()].totalAmount.sub(amount);
     _downvoters[_msgSender()].downvotes[user].downvoted = false;
+    _downvoters[_msgSender()].downvotes[user].date = block.timestamp;
 
     _downvotes[user].totalDownvote -= 1;
     _downvotes[user].totalAmount = _downvotes[user].totalAmount.sub(amount);
