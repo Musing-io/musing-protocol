@@ -61,7 +61,7 @@ contract EconomyBond is EconomyFactory {
      */
     function getMusingReward(address tokenAddress, uint256 reserveAmount) public view _checkBondExists(tokenAddress) returns (uint256, uint256) {
         uint256 taxAmount = reserveAmount * BUY_TAX / MAX_TAX;
-        uint256 newSupply = Math.floorSqrt(2 * 1e18 * ((reserveAmount - taxAmount) + reserveBalance[tokenAddress]));
+        uint256 newSupply = Math.floorSqrt(20 * 1e18 * ((reserveAmount - taxAmount) + reserveBalance[tokenAddress]));
         uint256 toMint = newSupply - EconomyToken(tokenAddress).totalSupply();
 
         require(newSupply <= maxSupply[tokenAddress], "EXCEEDED_MAX_SUPPLY");
@@ -73,7 +73,7 @@ contract EconomyBond is EconomyFactory {
         uint256 newTokenSupply = EconomyToken(tokenAddress).totalSupply() - tokenAmount;
 
         // Should be the same as: (1/2 * (totalSupply**2 - newTokenSupply**2);
-        uint256 reserveAmount = reserveBalance[tokenAddress] - (newTokenSupply**2 / (2 * 1e18));
+        uint256 reserveAmount = reserveBalance[tokenAddress] - (newTokenSupply**2 / (20 * 1e18));
         uint256 taxAmount = reserveAmount * SELL_TAX / MAX_TAX;
 
         return (reserveAmount - taxAmount, taxAmount);
