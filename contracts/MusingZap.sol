@@ -36,7 +36,7 @@ contract MusingZap is Context {
         address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
 
     constructor() {
-        _approveToken(MINT_CONTRACT, address(BOND));
+        _approveToken(WAVAX_CONTRACT, address(BOND));
     }
 
     receive() external payable {}
