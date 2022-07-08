@@ -22,17 +22,7 @@ contract MusingZap is Context {
     uint256 private constant MAX_TAX = 1000;
 
     address private constant DEFAULT_BENEFICIARY =
-        0x1908eeb25102d1BCd7B6baFE55e84FE6737310c5;
-
-    // MARK: - Mainnet configs
-
-    // IUniswapV2Factory private constant PANCAKE_FACTORY = IUniswapV2Factory(0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73);
-    // IUniswapV2Router02 private constant PANCAKE_ROUTER = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
-    // IEconomyBond private constant BOND = IEconomyBond(0x8BBac0C7583Cc146244a18863E708bFFbbF19975);
-    // uint256 private constant DEAD_LINE = 0xf000000000000000000000000000000000000000000000000000000000000000;
-    // address private constant WAVAX_CONTRACT = address(0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c);
-
-    // MARK: - Testnet configs
+        0x292eC696dEc44222799c4e8D90ffbc1032D1b7AC;
 
     IUniswapV2Factory private constant PANCAKE_FACTORY =
         IUniswapV2Factory(0x6725F303b657a9451d8BA641348b6761A6CC7a17);
@@ -45,7 +35,9 @@ contract MusingZap is Context {
     address private constant WAVAX_CONTRACT =
         address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
 
-    constructor() {}
+    constructor() {
+        _approveToken(MINT_CONTRACT, address(BOND));
+    }
 
     receive() external payable {}
 
@@ -92,7 +84,9 @@ contract MusingZap is Context {
         }
 
         uint256 taxAmount = (mintAmount * BUY_TAX) / MAX_TAX;
-        uint256 newSupply = Math.floorSqrt(2 * 1e18 * (mintAmount - taxAmount));
+        uint256 newSupply = Math.floorSqrt(
+            20 * 1e18 * (mintAmount - taxAmount)
+        );
 
         return (newSupply, taxAmount);
     }
