@@ -26,7 +26,7 @@ contract EconomyBond is EconomyFactory {
     EconomyToken private RESERVE_TOKEN; // Any IERC20
     address internal bancorFormula; // BancorFormula contract address
     uint32 internal cw; // Reserve weight
-    address public musingRewards; // Reward Pool Address
+    address public musingReward; // Reward Pool Address
     address public defaultBeneficiary;
     address private constant WAVAX_CONTRACT =
         address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
@@ -64,7 +64,7 @@ contract EconomyBond is EconomyFactory {
         uint32 _cw
     ) EconomyFactory(implementation) {
         RESERVE_TOKEN = EconomyToken(baseToken);
-        musingRewards = musingRewardPool;
+        musingReward = musingRewardPool;
         defaultBeneficiary = address(
             0x1908eeb25102d1BCd7B6baFE55e84FE6737310c5
         );
@@ -116,6 +116,11 @@ contract EconomyBond is EconomyFactory {
         defaultBeneficiary = beneficiary;
     }
 
+    function setMusingRewardAddress(address _musingReward) external onlyOwner {
+        require(_musingReward != address(0), "MUSING_REWARD_CANNOT_BE_NULL");
+        musingReward = _musingReward;
+    }
+
     /// @notice Returns reserve balance
     /// @dev calls balanceOf in reserve token contract
     /**
@@ -161,7 +166,7 @@ contract EconomyBond is EconomyFactory {
 
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingRewards, initialRewardPool);
+        EconomyToken(newToken).mint(musingReward, initialRewardPool);
 
         require(
             RESERVE_TOKEN.transferFrom(
@@ -185,7 +190,7 @@ contract EconomyBond is EconomyFactory {
         require(initialReserve >= 1e18, "Invalid Initial Reserve");
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingRewards, initialRewardPool);
+        EconomyToken(newToken).mint(musingReward, initialRewardPool);
 
         // Wrap AVAX to WAVAX
         IWAVAX(WAVAX_CONTRACT).deposit{value: initialReserve}();
