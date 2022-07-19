@@ -17,7 +17,7 @@ module.exports = async function (deployer, network, accounts) {
     EconomyToken.address,
     accounts[0],
     BancorFormula.address,
-    "20000"
+    "150000"
   );
   // await deployer.deploy(EconomyToken, 'ECONOMY', 'ECON', "2000000000000000000000000");
   // await deployer.deploy(EndorseUser, MusingToken.address);

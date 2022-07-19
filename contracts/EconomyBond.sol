@@ -7,6 +7,7 @@ import "./EconomyFactory.sol";
 import "./ERC20/EconomyToken.sol";
 import "./lib/Math.sol";
 import "./lib/BancorFormula.sol";
+import "./lib/IWAVAX.sol";
 
 /**
  * @title Musing Economy Bond
@@ -15,20 +16,27 @@ import "./lib/BancorFormula.sol";
  */
 contract EconomyBond is EconomyFactory {
     using SafeMath for uint256;
-    uint256 private constant BUY_TAX = 3; // 0.3%
-    uint256 private constant SELL_TAX = 13; // 1.3%
+    uint256 private constant BUY_TAX = 5; // 0.5%
+    uint256 private constant SELL_TAX = 15; // 1.5%
     uint256 private constant MAX_TAX = 1000;
 
     // Token => Reserve Balance
     mapping(address => uint256) public _reserveBalance;
 
     EconomyToken private RESERVE_TOKEN; // Any IERC20
-    address internal immutable bancorFormula; // BancorFormula contract address
-    uint32 internal immutable cw; // Reserve weight
+    address internal bancorFormula; // BancorFormula contract address
+    uint32 internal cw; // Reserve weight
     address public musingRewards; // Reward Pool Address
     address public defaultBeneficiary;
+    address private constant WAVAX_CONTRACT =
+        address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
 
     bool private _initialized = false;
+    /*
+    - Front-running attacks are currently mitigated by the following mechanisms:
+    - gas price limit prevents users from having control over the order of execution
+    */
+    uint256 public gasPrice = 0 wei; // maximum gas price for bancor transactions
 
     event Buy(
         address tokenAddress,
@@ -46,6 +54,7 @@ contract EconomyBond is EconomyFactory {
         address beneficiary,
         uint256 taxAmount
     );
+    event Burn(address tokenAddress, address account, uint256 amountBurned);
 
     constructor(
         address baseToken,
@@ -74,10 +83,24 @@ contract EconomyBond is EconomyFactory {
         _;
     }
 
+    // verifies that the gas price is lower than the universal limit
+    modifier validGasPrice() {
+        assert(tx.gasprice <= gasPrice);
+        _;
+    }
+
     function init() public payable virtual {
         require(!_initialized);
         BancorFormula(bancorFormula).init();
         _initialized = true;
+        gasPrice = 27500000000; // 27.5 gwei or navax
+    }
+
+    function updateFormula(address _formula) external onlyOwner {
+        require(_formula != address(0), "Invalid Address");
+
+        bancorFormula = _formula;
+        _initialized = false; // call init after updating bancor formula
     }
 
     // MARK: - Utility functions for external calls
@@ -127,7 +150,6 @@ contract EconomyBond is EconomyFactory {
             );
     }
 
-    // address beneficiary
     function createEconomy(
         string memory name,
         string memory symbol,
@@ -153,10 +175,23 @@ contract EconomyBond is EconomyFactory {
         _reserveBalance[newToken] = initialReserve;
     }
 
-    /**
-     * @dev Use the simplest bonding curve (y = x) as we can adjust total supply of reserve tokens to adjust slope
-     * Price = SLOPE * totalSupply = totalSupply (where slope = 1)
-     */
+    function createEconomyInAvax(
+        string memory name,
+        string memory symbol,
+        uint256 maxTokenSupply,
+        uint256 initialRewardPool
+    ) external payable {
+        uint256 initialReserve = msg.value;
+        require(initialReserve >= 1e18, "Invalid Initial Reserve");
+        address newToken = createToken(name, symbol, maxTokenSupply);
+        // Mint tokens to reward pool contract
+        EconomyToken(newToken).mint(musingRewards, initialRewardPool);
+
+        // Wrap AVAX to WAVAX
+        IWAVAX(WAVAX_CONTRACT).deposit{value: initialReserve}();
+        _reserveBalance[newToken] = initialReserve;
+    }
+
     function getReward(address tokenAddress, uint256 reserveAmount)
         public
         view
@@ -169,7 +204,6 @@ contract EconomyBond is EconomyFactory {
             reserveBalance(tokenAddress),
             reserveWeight(),
             reserveAmount - taxAmount
-            // reserveAmount
         );
 
         return (toMint, taxAmount);
@@ -191,15 +225,13 @@ contract EconomyBond is EconomyFactory {
         uint256 taxAmount = (reserveAmount * SELL_TAX) / MAX_TAX;
 
         return (reserveAmount - taxAmount, taxAmount);
-        // return (reserveAmount, taxAmount);
     }
 
     function buy(
         address tokenAddress,
         uint256 reserveAmount,
-        uint256 minReward,
-        address beneficiary
-    ) public {
+        uint256 minReward
+    ) public validGasPrice {
         (uint256 rewardTokens, uint256 taxAmount) = getReward(
             tokenAddress,
             reserveAmount
@@ -212,29 +244,22 @@ contract EconomyBond is EconomyFactory {
                 _msgSender(),
                 address(this),
                 reserveAmount - taxAmount
-                // reserveAmount
             ),
             "RESERVE_TOKEN_TRANSFER_FAILED"
         );
         _reserveBalance[tokenAddress] += (reserveAmount - taxAmount);
-        // _reserveBalance[tokenAddress] += reserveAmount;
 
         // Mint reward tokens to the buyer
         EconomyToken(tokenAddress).mint(_msgSender(), rewardTokens);
-
-        // Pay tax to the beneficiary / Send to the default beneficiary if not set (or abused)
-        address actualBeneficiary = beneficiary;
-        if (beneficiary == address(0) || beneficiary == _msgSender()) {
-            actualBeneficiary = defaultBeneficiary;
-        }
-        RESERVE_TOKEN.transferFrom(_msgSender(), actualBeneficiary, taxAmount);
+        // Pay tax to the beneficiary
+        RESERVE_TOKEN.transferFrom(_msgSender(), defaultBeneficiary, taxAmount);
 
         emit Buy(
             tokenAddress,
             _msgSender(),
             rewardTokens,
             reserveAmount,
-            actualBeneficiary,
+            defaultBeneficiary,
             taxAmount
         );
     }
@@ -242,9 +267,8 @@ contract EconomyBond is EconomyFactory {
     function sell(
         address tokenAddress,
         uint256 tokenAmount,
-        uint256 minRefund,
-        address beneficiary
-    ) public {
+        uint256 minRefund
+    ) public validGasPrice {
         (uint256 refundAmount, uint256 taxAmount) = getRefund(
             tokenAddress,
             tokenAmount
@@ -256,26 +280,40 @@ contract EconomyBond is EconomyFactory {
 
         // Refund reserve tokens to the seller
         _reserveBalance[tokenAddress] -= (refundAmount + taxAmount);
-        // _reserveBalance[tokenAddress] -= refundAmount;
         require(
             RESERVE_TOKEN.transfer(_msgSender(), refundAmount),
             "RESERVE_TOKEN_TRANSFER_FAILED"
         );
 
-        // Pay tax to the beneficiary / Send to the default beneficiary if not set (or abused)
-        address actualBeneficiary = beneficiary;
-        if (beneficiary == address(0) || beneficiary == _msgSender()) {
-            actualBeneficiary = defaultBeneficiary;
-        }
-        RESERVE_TOKEN.transfer(actualBeneficiary, taxAmount);
+        // Pay tax to the beneficiary
+        RESERVE_TOKEN.transfer(defaultBeneficiary, taxAmount);
 
         emit Sell(
             tokenAddress,
             _msgSender(),
             tokenAmount,
             refundAmount,
-            actualBeneficiary,
+            defaultBeneficiary,
             taxAmount
         );
+    }
+
+    function burn(address tokenAddress, uint256 tokenAmount)
+        public
+        _checkBondExists(tokenAddress)
+    {
+        require(tokenAmount > 0, "Invalid Token Amount");
+        EconomyToken(tokenAddress).burnFrom(_msgSender(), tokenAmount);
+
+        emit Burn(tokenAddress, _msgSender(), tokenAmount);
+    }
+
+    /**
+    @dev Allows the owner to update the gas price limit
+    @param _gasPrice The new gas price limit
+    */
+    function setGasPrice(uint256 _gasPrice) public onlyOwner {
+        require(_gasPrice > 0);
+        gasPrice = _gasPrice;
     }
 }
