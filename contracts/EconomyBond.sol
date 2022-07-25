@@ -26,10 +26,10 @@ contract EconomyBond is EconomyFactory {
     EconomyToken private RESERVE_TOKEN; // Any IERC20
     address internal bancorFormula; // BancorFormula contract address
     uint32 internal cw; // Reserve weight
-    address public musingReward; // Reward Pool Address
+    address public musingVault; // Musing Vault
     address public defaultBeneficiary;
     address private constant WAVAX_CONTRACT =
-        address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
+        address(0xd00ae08403B9bbb9124bB305C09058E32C39A48c);
 
     bool private _initialized = false;
     /*
@@ -59,12 +59,10 @@ contract EconomyBond is EconomyFactory {
     constructor(
         address baseToken,
         address implementation,
-        address musingRewardPool,
         address _bancorFormula,
         uint32 _cw
     ) EconomyFactory(implementation) {
         RESERVE_TOKEN = EconomyToken(baseToken);
-        musingReward = musingRewardPool;
         defaultBeneficiary = address(
             0x1908eeb25102d1BCd7B6baFE55e84FE6737310c5
         );
@@ -89,9 +87,10 @@ contract EconomyBond is EconomyFactory {
         _;
     }
 
-    function init() public payable virtual {
+    function init(address _musingVault) public payable virtual {
         require(!_initialized);
         BancorFormula(bancorFormula).init();
+        musingVault = _musingVault;
         _initialized = true;
         gasPrice = 27500000000; // 27.5 gwei or navax
     }
@@ -116,9 +115,9 @@ contract EconomyBond is EconomyFactory {
         defaultBeneficiary = beneficiary;
     }
 
-    function setMusingRewardAddress(address _musingReward) external onlyOwner {
-        require(_musingReward != address(0), "MUSING_REWARD_CANNOT_BE_NULL");
-        musingReward = _musingReward;
+    function setMusingVaultAddress(address _musingVault) external onlyOwner {
+        require(_musingVault != address(0), "MUSING_REWARD_CANNOT_BE_NULL");
+        musingVault = _musingVault;
     }
 
     /// @notice Returns reserve balance
@@ -162,11 +161,15 @@ contract EconomyBond is EconomyFactory {
         uint256 initialReserve,
         uint256 initialRewardPool
     ) external {
+        require(
+            initialRewardPool >= 1e18 && initialRewardPool < maxTokenSupply,
+            "Invalid Initial Reward Pool"
+        );
         require(initialReserve >= 1e18, "Invalid Initial Reserve");
 
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingReward, initialRewardPool);
+        EconomyToken(newToken).mint(musingVault, initialRewardPool);
 
         require(
             RESERVE_TOKEN.transferFrom(
@@ -187,10 +190,14 @@ contract EconomyBond is EconomyFactory {
         uint256 initialRewardPool
     ) external payable {
         uint256 initialReserve = msg.value;
+        require(
+            initialRewardPool >= 1e18 && initialRewardPool < maxTokenSupply,
+            "Invalid Initial Reward Pool"
+        );
         require(initialReserve >= 1e18, "Invalid Initial Reserve");
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingReward, initialRewardPool);
+        EconomyToken(newToken).mint(musingVault, initialRewardPool);
 
         // Wrap AVAX to WAVAX
         IWAVAX(WAVAX_CONTRACT).deposit{value: initialReserve}();

@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./EconomyFactory.sol";
-import "./ERC20/EconomyToken.sol";
-import "./lib/Math.sol";
+import "../EconomyFactory.sol";
+import "../ERC20/EconomyToken.sol";
+import "../lib/Math.sol";
 
 /**
  * @title Musing Economy Bond

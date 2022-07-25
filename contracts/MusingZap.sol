@@ -63,7 +63,7 @@ contract MusingZap is Context {
             ];
         }
 
-        return BOND.getMusingReward(to, mintAmount);
+        return BOND.getReward(to, mintAmount);
     }
 
     function estimateZapInInitial(address from, uint256 fromAmount)
@@ -165,10 +165,7 @@ contract MusingZap is Context {
         returns (uint256 toAmountToReceive, uint256 wavaxTokenTaxAmount)
     {
         uint256 wavaxToRefund;
-        (wavaxToRefund, wavaxTokenTaxAmount) = BOND.getBurnRefund(
-            from,
-            fromAmount
-        );
+        (wavaxToRefund, wavaxTokenTaxAmount) = BOND.getRefund(from, fromAmount);
 
         if (to == WAVAX_CONTRACT) {
             toAmountToReceive = wavaxToRefund;
