@@ -2,6 +2,7 @@
 // OpenZeppelin Contracts v4.4.1 (finance/VestingWallet.sol)
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
@@ -19,7 +20,7 @@ import "./lib/IEconomyBond.sol";
  * Consequently, if the vesting has already started, any amount of tokens sent to this contract will (at least partly)
  * be immediately releasable.
  */
-contract MusingVault is Context {
+contract MusingVault is Context, Ownable {
     event EtherReleased(uint256 amount);
     event ERC20Released(address indexed token, uint256 amount);
 
@@ -62,7 +63,7 @@ contract MusingVault is Context {
         require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
         require(vestings[tokenAddress]._set != true, "TOKEN_ALREADY_SET");
         require(startTimestamp > block.timestamp, "Invalid start timestamp");
-        require(durationSeconds > 0, "Invalid start timestamp");
+        require(durationSeconds > 0, "Invalid duration");
 
         vestings[tokenAddress]._set = true;
         vestings[tokenAddress]._start = startTimestamp;
@@ -75,6 +76,18 @@ contract MusingVault is Context {
         vestings[tokenAddress]._beneficiary = actualBeneficiary;
 
         return true;
+    }
+
+    function setBeneficiary(address _tokenAddress, address _beneficiary)
+        external
+        onlyOwner
+    {
+        require(IEconomyBond(bond).exists(_tokenAddress), "TOKEN_NOT_FOUND");
+        require(
+            _beneficiary != address(0),
+            "DEFAULT_BENEFICIARY_CANNOT_BE_NULL"
+        );
+        vestings[_tokenAddress]._beneficiary = _beneficiary;
     }
 
     /**

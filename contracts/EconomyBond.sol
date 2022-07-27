@@ -8,6 +8,7 @@ import "./ERC20/EconomyToken.sol";
 import "./lib/Math.sol";
 import "./lib/BancorFormula.sol";
 import "./lib/IWAVAX.sol";
+import "./lib/IMusingVault.sol";
 
 /**
  * @title Musing Economy Bond
@@ -24,9 +25,9 @@ contract EconomyBond is EconomyFactory {
     mapping(address => uint256) public _reserveBalance;
 
     EconomyToken private RESERVE_TOKEN; // Any IERC20
+    IMusingVault public MUSING_VAULT; // Musing Vault
     address internal bancorFormula; // BancorFormula contract address
     uint32 internal cw; // Reserve weight
-    address public musingVault; // Musing Vault
     address public defaultBeneficiary;
     address private constant WAVAX_CONTRACT =
         address(0xd00ae08403B9bbb9124bB305C09058E32C39A48c);
@@ -90,7 +91,7 @@ contract EconomyBond is EconomyFactory {
     function init(address _musingVault) public payable virtual {
         require(!_initialized);
         BancorFormula(bancorFormula).init();
-        musingVault = _musingVault;
+        MUSING_VAULT = IMusingVault(_musingVault);
         _initialized = true;
         gasPrice = 27500000000; // 27.5 gwei or navax
     }
@@ -116,8 +117,8 @@ contract EconomyBond is EconomyFactory {
     }
 
     function setMusingVaultAddress(address _musingVault) external onlyOwner {
-        require(_musingVault != address(0), "MUSING_REWARD_CANNOT_BE_NULL");
-        musingVault = _musingVault;
+        require(_musingVault != address(0), "MUSING_VAULT_CANNOT_BE_NULL");
+        MUSING_VAULT = IMusingVault(_musingVault);
     }
 
     /// @notice Returns reserve balance
@@ -159,17 +160,28 @@ contract EconomyBond is EconomyFactory {
         string memory symbol,
         uint256 maxTokenSupply,
         uint256 initialReserve,
-        uint256 initialRewardPool
+        uint256 initialRewardPool,
+        uint64 startTimestamp,
+        uint64 durationSeconds
     ) external {
         require(
             initialRewardPool >= 1e18 && initialRewardPool < maxTokenSupply,
             "Invalid Initial Reward Pool"
         );
         require(initialReserve >= 1e18, "Invalid Initial Reserve");
+        require(startTimestamp > block.timestamp, "Invalid start timestamp");
+        require(durationSeconds > 0, "Invalid duration");
 
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingVault, initialRewardPool);
+        EconomyToken(newToken).mint(address(MUSING_VAULT), initialRewardPool);
+        // Vest tokens
+        MUSING_VAULT.vest(
+            newToken,
+            _msgSender(),
+            startTimestamp,
+            durationSeconds
+        );
 
         require(
             RESERVE_TOKEN.transferFrom(
@@ -187,7 +199,9 @@ contract EconomyBond is EconomyFactory {
         string memory name,
         string memory symbol,
         uint256 maxTokenSupply,
-        uint256 initialRewardPool
+        uint256 initialRewardPool,
+        uint64 startTimestamp,
+        uint64 durationSeconds
     ) external payable {
         uint256 initialReserve = msg.value;
         require(
@@ -195,9 +209,19 @@ contract EconomyBond is EconomyFactory {
             "Invalid Initial Reward Pool"
         );
         require(initialReserve >= 1e18, "Invalid Initial Reserve");
+        require(startTimestamp > block.timestamp, "Invalid start timestamp");
+        require(durationSeconds > 0, "Invalid duration");
+
         address newToken = createToken(name, symbol, maxTokenSupply);
         // Mint tokens to reward pool contract
-        EconomyToken(newToken).mint(musingVault, initialRewardPool);
+        EconomyToken(newToken).mint(address(MUSING_VAULT), initialRewardPool);
+        // Vest tokens
+        MUSING_VAULT.vest(
+            newToken,
+            _msgSender(),
+            startTimestamp,
+            durationSeconds
+        );
 
         // Wrap AVAX to WAVAX
         IWAVAX(WAVAX_CONTRACT).deposit{value: initialReserve}();
