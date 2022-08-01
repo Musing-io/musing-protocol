@@ -64,10 +64,6 @@ contract EconomyBond is EconomyFactory {
         uint32 _cw
     ) EconomyFactory(implementation) {
         RESERVE_TOKEN = EconomyToken(baseToken);
-        defaultBeneficiary = address(
-            0x1908eeb25102d1BCd7B6baFE55e84FE6737310c5
-        );
-
         bancorFormula = _bancorFormula;
         cw = _cw;
     }
@@ -88,10 +84,15 @@ contract EconomyBond is EconomyFactory {
         _;
     }
 
-    function init(address _musingVault) public payable virtual {
+    function init(address _musingVault, address _defaultBeneficiary)
+        public
+        payable
+        virtual
+    {
         require(!_initialized);
         BancorFormula(bancorFormula).init();
         MUSING_VAULT = IMusingVault(_musingVault);
+        defaultBeneficiary = _defaultBeneficiary;
         _initialized = true;
         gasPrice = 27500000000; // 27.5 gwei or navax
     }
@@ -178,7 +179,7 @@ contract EconomyBond is EconomyFactory {
         // Vest tokens
         MUSING_VAULT.vest(
             newToken,
-            _msgSender(),
+            defaultBeneficiary,
             startTimestamp,
             durationSeconds
         );
@@ -218,7 +219,7 @@ contract EconomyBond is EconomyFactory {
         // Vest tokens
         MUSING_VAULT.vest(
             newToken,
-            _msgSender(),
+            defaultBeneficiary,
             startTimestamp,
             durationSeconds
         );

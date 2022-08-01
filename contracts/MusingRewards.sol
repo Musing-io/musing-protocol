@@ -5,68 +5,109 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/interfaces/IERC20.sol";
 import "@openzeppelin/contracts/utils/Context.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "./lib/IEconomyBond.sol";
 
 contract MusingRewards is Context, Ownable {
-  using SafeMath for uint256;
+    using SafeMath for uint256;
 
-  address public mscToken;
-  address public rewardAddress = 0x292eC696dEc44222799c4e8D90ffbc1032D1b7AC;
-
-  mapping(address => uint256) public _rewards;
-
-  event Claimed(address indexed user, uint256 reward);
-  event RewardsSet();
-
-  constructor (address _mscToken) {
-    mscToken = _mscToken;
-  }
-
-  function updateRewardAddress(address _newAddress) external onlyOwner {
-    rewardAddress = _newAddress;
-  }
-
-  function distribute(address[] memory users, uint256[] memory rewards) external onlyOwner returns (bool) {
-    require(users.length == rewards.length, "Length of users and rewards are not the same.");
-
-    uint i=0;
-    uint len = users.length;
-
-    for (; i < len; i++) {
-      uint256 reward = rewards[i];
-      address user = users[i];
-
-      if (reward > 0 && user != address(0x0)) {
-        _rewards[user] = _rewards[user].add(reward);
-      }
+    struct Reward {
+        uint256 rewards;
+        uint256 claimed;
     }
 
-    emit RewardsSet();
-    return true;
-  }
+    IEconomyBond internal bond; // Economy Bond Contract
 
-  function checkRewards(address user) public view returns(uint256) {
-    uint256 reward = _rewards[user];
-    return reward;
-  }
+    // token => user => amount
+    mapping(address => mapping(address => Reward)) public _rewards;
+    // token => amount
+    mapping(address => uint256) public distributedRewards;
+    mapping(address => uint256) public claimedRewards;
 
-  function claim() public returns(bool) {
-    uint256 reward = _rewards[_msgSender()];
-    uint256 rewardBalance = IERC20(mscToken).balanceOf(rewardAddress);
-    require(reward > 0, "No rewards to claim.");
-    require(reward <= rewardBalance, "No available funds.");
+    event Claimed(address indexed user, uint256 reward);
+    event RewardsSet();
 
-    _rewards[_msgSender()] = 0;
-    _safeTransfer(rewardAddress, _msgSender(), reward);
+    constructor(address _bond) {
+        bond = IEconomyBond(_bond);
+    }
 
-    emit Claimed(_msgSender(), reward);
-    return true;
-  }
+    function distribute(
+        address tokenAddress,
+        address[] memory users,
+        uint256[] memory rewards
+    ) external onlyOwner returns (bool) {
+        require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
+        require(
+            users.length == rewards.length,
+            "Length of users and rewards are not the same."
+        );
 
-  // Transfer token from one address to another
-  function _safeTransfer(address from, address to, uint256 amount) private {
-    uint256 allowance = IERC20(mscToken).allowance(address(this), from);
-    IERC20(mscToken).approve(from, allowance.add(amount));
-    IERC20(mscToken).transferFrom(from, to, amount);
-  }
+        uint256 i = 0;
+        uint256 len = users.length;
+        uint256 totalDistributed = 0;
+        uint256 rewardPool = IERC20(tokenAddress).balanceOf(address(this)) -
+            (distributedRewards[tokenAddress] - claimedRewards[tokenAddress]);
 
+        for (; i < len; i++) {
+            require(rewardPool >= rewards[i], "NOT_ENOUGH_REWARD_POOL");
+            uint256 reward = rewards[i];
+            address user = users[i];
+            rewardPool = rewardPool.sub(reward);
+            totalDistributed = totalDistributed.add(reward);
+
+            if (reward > 0 && user != address(0x0)) {
+                _rewards[tokenAddress][user].rewards = _rewards[tokenAddress][
+                    user
+                ].rewards.add(reward);
+            }
+        }
+
+        distributedRewards[tokenAddress] = distributedRewards[tokenAddress].add(
+            totalDistributed
+        );
+        emit RewardsSet();
+        return true;
+    }
+
+    function getReward(address tokenAddress, address user)
+        internal
+        view
+        virtual
+        returns (uint256)
+    {
+        return
+            _rewards[tokenAddress][user].rewards -
+            _rewards[tokenAddress][user].claimed;
+    }
+
+    function checkRewards(address tokenAddress, address user)
+        public
+        view
+        returns (uint256)
+    {
+        require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
+        return getReward(tokenAddress, user);
+    }
+
+    function claim(address tokenAddress) external returns (bool) {
+        require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
+
+        uint256 reward = getReward(tokenAddress, _msgSender());
+        uint256 rewardBalance = IERC20(tokenAddress).balanceOf(address(this));
+
+        require(reward > 0, "No rewards to claim.");
+        require(reward <= rewardBalance, "No available funds.");
+
+        _rewards[tokenAddress][_msgSender()].claimed = _rewards[tokenAddress][
+            _msgSender()
+        ].claimed.add(reward);
+        claimedRewards[tokenAddress] = claimedRewards[tokenAddress].add(reward);
+
+        require(
+            IERC20(tokenAddress).transfer(_msgSender(), reward),
+            "ECONOMY_TOKEN_TRANSFER_FAILED"
+        );
+
+        emit Claimed(_msgSender(), reward);
+        return true;
+    }
 }
