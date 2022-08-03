@@ -88,6 +88,14 @@ contract MusingRewards is Context, Ownable {
         return getReward(tokenAddress, user);
     }
 
+    function distributed(address tokenAddress) public view returns (uint256) {
+        return distributedRewards[tokenAddress];
+    }
+
+    function claimed(address tokenAddress) public view returns (uint256) {
+        return claimedRewards[tokenAddress];
+    }
+
     function claim(address tokenAddress) external returns (bool) {
         require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
 

@@ -138,7 +138,11 @@ contract MusingVault is Context, Ownable {
      *
      * Emits a {TokensReleased} event.
      */
-    function release(address tokenAddress) public virtual {
+    function release(address tokenAddress)
+        public
+        virtual
+        returns (address, uint256)
+    {
         uint256 releasable = vestedAmount(
             tokenAddress,
             uint64(block.timestamp)
@@ -150,6 +154,8 @@ contract MusingVault is Context, Ownable {
             beneficiary(tokenAddress),
             releasable
         );
+
+        return (tokenAddress, releasable);
     }
 
     /**
