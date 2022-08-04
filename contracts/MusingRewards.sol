@@ -18,13 +18,17 @@ contract MusingRewards is Context, Ownable {
     IEconomyBond internal bond; // Economy Bond Contract
 
     // token => user => amount
-    mapping(address => mapping(address => Reward)) public _rewards;
+    mapping(address => mapping(address => Reward)) private _rewards;
     // token => amount
-    mapping(address => uint256) public distributedRewards;
-    mapping(address => uint256) public claimedRewards;
+    mapping(address => uint256) private distributedRewards;
+    mapping(address => uint256) private claimedRewards;
 
-    event Claimed(address indexed user, uint256 reward);
-    event RewardsSet();
+    event Claimed(
+        address indexed tokenAddress,
+        address indexed user,
+        uint256 reward
+    );
+    event RewardsSet(address indexed tokenAddress);
 
     constructor(address _bond) {
         bond = IEconomyBond(_bond);
@@ -64,7 +68,7 @@ contract MusingRewards is Context, Ownable {
         distributedRewards[tokenAddress] = distributedRewards[tokenAddress].add(
             totalDistributed
         );
-        emit RewardsSet();
+        emit RewardsSet(tokenAddress);
         return true;
     }
 
@@ -86,6 +90,24 @@ contract MusingRewards is Context, Ownable {
     {
         require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
         return getReward(tokenAddress, user);
+    }
+
+    function checkUserTotalRewards(address tokenAddress, address user)
+        public
+        view
+        returns (uint256)
+    {
+        require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
+        return _rewards[tokenAddress][user].rewards;
+    }
+
+    function checkUserTotalClaimed(address tokenAddress, address user)
+        public
+        view
+        returns (uint256)
+    {
+        require(IEconomyBond(bond).exists(tokenAddress), "TOKEN_NOT_FOUND");
+        return _rewards[tokenAddress][user].claimed;
     }
 
     function distributed(address tokenAddress) public view returns (uint256) {
@@ -115,7 +137,7 @@ contract MusingRewards is Context, Ownable {
             "ECONOMY_TOKEN_TRANSFER_FAILED"
         );
 
-        emit Claimed(_msgSender(), reward);
+        emit Claimed(tokenAddress, _msgSender(), reward);
         return true;
     }
 }
