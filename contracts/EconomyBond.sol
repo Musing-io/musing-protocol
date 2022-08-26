@@ -29,6 +29,7 @@ contract EconomyBond is EconomyFactory {
     address internal bancorFormula; // BancorFormula contract address
     uint32 internal cw; // Reserve weight
     address public defaultBeneficiary;
+    address public taxBeneficiary;
     address private constant WAVAX_CONTRACT =
         address(0xd00ae08403B9bbb9124bB305C09058E32C39A48c);
 
@@ -84,15 +85,16 @@ contract EconomyBond is EconomyFactory {
         _;
     }
 
-    function init(address _musingVault, address _defaultBeneficiary)
-        public
-        payable
-        virtual
-    {
+    function init(
+        address _musingVault,
+        address _musingRewards,
+        address _taxBeneficiary
+    ) public payable virtual {
         require(!_initialized);
         BancorFormula(bancorFormula).init();
         MUSING_VAULT = IMusingVault(_musingVault);
-        defaultBeneficiary = _defaultBeneficiary;
+        defaultBeneficiary = _musingRewards;
+        taxBeneficiary = _taxBeneficiary;
         _initialized = true;
         gasPrice = 27500000000; // 27.5 gwei or navax
     }
@@ -115,6 +117,14 @@ contract EconomyBond is EconomyFactory {
             "DEFAULT_BENEFICIARY_CANNOT_BE_NULL"
         );
         defaultBeneficiary = beneficiary;
+    }
+
+    function setDefaultTaxBeneficiary(address beneficiary) external onlyOwner {
+        require(
+            beneficiary != address(0),
+            "DEFAULT_BENEFICIARY_CANNOT_BE_NULL"
+        );
+        taxBeneficiary = beneficiary;
     }
 
     function setMusingVaultAddress(address _musingVault) external onlyOwner {
@@ -268,7 +278,7 @@ contract EconomyBond is EconomyFactory {
         address tokenAddress,
         uint256 reserveAmount,
         uint256 minReward
-    ) public validGasPrice {
+    ) public validGasPrice returns (uint256) {
         (uint256 rewardTokens, uint256 taxAmount) = getReward(
             tokenAddress,
             reserveAmount
@@ -289,23 +299,25 @@ contract EconomyBond is EconomyFactory {
         // Mint reward tokens to the buyer
         EconomyToken(tokenAddress).mint(_msgSender(), rewardTokens);
         // Pay tax to the beneficiary
-        RESERVE_TOKEN.transferFrom(_msgSender(), defaultBeneficiary, taxAmount);
+        RESERVE_TOKEN.transferFrom(_msgSender(), taxBeneficiary, taxAmount);
 
         emit Buy(
             tokenAddress,
             _msgSender(),
             rewardTokens,
             reserveAmount,
-            defaultBeneficiary,
+            taxBeneficiary,
             taxAmount
         );
+
+        return rewardTokens;
     }
 
     function sell(
         address tokenAddress,
         uint256 tokenAmount,
         uint256 minRefund
-    ) public validGasPrice {
+    ) public validGasPrice returns (uint256) {
         (uint256 refundAmount, uint256 taxAmount) = getRefund(
             tokenAddress,
             tokenAmount
@@ -323,16 +335,18 @@ contract EconomyBond is EconomyFactory {
         );
 
         // Pay tax to the beneficiary
-        RESERVE_TOKEN.transfer(defaultBeneficiary, taxAmount);
+        RESERVE_TOKEN.transfer(taxBeneficiary, taxAmount);
 
         emit Sell(
             tokenAddress,
             _msgSender(),
             tokenAmount,
             refundAmount,
-            defaultBeneficiary,
+            taxBeneficiary,
             taxAmount
         );
+
+        return refundAmount;
     }
 
     function burn(address tokenAddress, uint256 tokenAmount)

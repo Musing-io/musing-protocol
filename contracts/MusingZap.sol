@@ -17,8 +17,8 @@ import "./lib/Math.sol";
 contract MusingZap is Context {
     using SafeERC20 for IERC20;
 
-    uint256 private constant BUY_TAX = 3;
-    uint256 private constant SELL_TAX = 13;
+    uint256 private constant BUY_TAX = 5;
+    uint256 private constant SELL_TAX = 15;
     uint256 private constant MAX_TAX = 1000;
 
     address private constant DEFAULT_BENEFICIARY =
@@ -29,11 +29,11 @@ contract MusingZap is Context {
     IUniswapV2Router02 private constant PANCAKE_ROUTER =
         IUniswapV2Router02(0xD99D1c33F9fC3444f8101754aBC46c52416550D1);
     IEconomyBond private constant BOND =
-        IEconomyBond(0x38B587718a076A9fF60ef8253cEb1022db4a3137);
+        IEconomyBond(0xcB1255B9b34037C64A056fA20b8C32538b0904eF);
     uint256 private constant DEAD_LINE =
         0xf000000000000000000000000000000000000000000000000000000000000000;
     address private constant WAVAX_CONTRACT =
-        address(0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd);
+        address(0xd00ae08403B9bbb9124bB305C09058E32C39A48c);
 
     constructor() {
         _approveToken(WAVAX_CONTRACT, address(BOND));
@@ -219,11 +219,11 @@ contract MusingZap is Context {
         );
     }
 
-    function zapInAVAX(
-        address to,
-        uint256 minAmountOut,
-        address beneficiary
-    ) public payable {
+    function zapInAVAX(address to, uint256 minAmountOut)
+        public
+        payable
+    // address beneficiary
+    {
         uint256 mintAmount = msg.value;
         // Wrap AVAX to WAVAX
         IWAVAX(WAVAX_CONTRACT).deposit{value: mintAmount}();
@@ -232,8 +232,8 @@ contract MusingZap is Context {
         _buyWavaxTokenAndSend(
             to,
             mintAmount,
-            minAmountOut,
-            _getBeneficiary(beneficiary)
+            minAmountOut
+            // _getBeneficiary(beneficiary)
         );
     }
 
@@ -241,8 +241,7 @@ contract MusingZap is Context {
         address from,
         address to,
         uint256 amountIn,
-        uint256 minAmountOut,
-        address beneficiary
+        uint256 minAmountOut // address beneficiary
     ) public {
         // First, pull tokens to this contract
         IERC20 token = IERC20(from);
@@ -264,55 +263,54 @@ contract MusingZap is Context {
         _buyWavaxTokenAndSend(
             to,
             mintAmount,
-            minAmountOut,
-            _getBeneficiary(beneficiary)
+            minAmountOut
+            // _getBeneficiary(beneficiary)
         );
     }
 
-    function createAndZapIn(
-        string memory name,
-        string memory symbol,
-        uint256 maxTokenSupply,
-        address token,
-        uint256 tokenAmount,
-        uint256 minAmountOut,
-        address beneficiary
-    ) external {
-        address newToken = BOND.createToken(name, symbol, maxTokenSupply);
+    // function createAndZapIn(
+    //     string memory name,
+    //     string memory symbol,
+    //     uint256 maxTokenSupply,
+    //     address token,
+    //     uint256 tokenAmount,
+    //     uint256 minAmountOut,
+    //     address beneficiary
+    // ) external {
+    //     address newToken = BOND.createToken(name, symbol, maxTokenSupply);
 
-        // We need `minAmountOut` here token->WAVAX can be front ran and slippage may happen
-        zapIn(
-            token,
-            newToken,
-            tokenAmount,
-            minAmountOut,
-            _getBeneficiary(beneficiary)
-        );
-    }
+    //     // We need `minAmountOut` here token->WAVAX can be front ran and slippage may happen
+    //     zapIn(
+    //         token,
+    //         newToken,
+    //         tokenAmount,
+    //         minAmountOut,
+    //         _getBeneficiary(beneficiary)
+    //     );
+    // }
 
-    function createAndZapInAVAX(
-        string memory name,
-        string memory symbol,
-        uint256 maxTokenSupply,
-        uint256 minAmountOut,
-        address beneficiary
-    ) external payable {
-        address newToken = BOND.createToken(name, symbol, maxTokenSupply);
+    // function createAndZapInAVAX(
+    //     string memory name,
+    //     string memory symbol,
+    //     uint256 maxTokenSupply,
+    //     uint256 minAmountOut,
+    //     address beneficiary
+    // ) external payable {
+    //     address newToken = BOND.createToken(name, symbol, maxTokenSupply);
 
-        zapInAVAX(newToken, minAmountOut, _getBeneficiary(beneficiary));
-    }
+    //     zapInAVAX(newToken, minAmountOut, _getBeneficiary(beneficiary));
+    // }
 
     function zapOut(
         address from,
         address to,
         uint256 amountIn,
-        uint256 minAmountOut,
-        address beneficiary
+        uint256 minAmountOut // address beneficiary
     ) external {
         uint256 mintAmount = _receiveAndSwapToWavax(
             from,
-            amountIn,
-            _getBeneficiary(beneficiary)
+            amountIn
+            // _getBeneficiary(beneficiary)
         );
 
         // Swap to WAVAX if necessary
@@ -339,13 +337,12 @@ contract MusingZap is Context {
     function zapOutAVAX(
         address from,
         uint256 amountIn,
-        uint256 minAmountOut,
-        address beneficiary
+        uint256 minAmountOut // address beneficiary
     ) external {
         uint256 amountOut = _receiveAndSwapToWavax(
             from,
-            amountIn,
-            _getBeneficiary(beneficiary)
+            amountIn
+            // _getBeneficiary(beneficiary)
         );
 
         // Unwrap wavax to avax
@@ -364,15 +361,14 @@ contract MusingZap is Context {
     function _buyWavaxTokenAndSend(
         address tokenAddress,
         uint256 mintAmount,
-        uint256 minAmountOut,
-        address beneficiary
+        uint256 minAmountOut // address beneficiary
     ) internal {
         // Finally, buy target tokens with swapped WAVX (can be reverted due to slippage limit)
         BOND.buy(
             tokenAddress,
             mintAmount,
-            minAmountOut,
-            _getBeneficiary(beneficiary)
+            minAmountOut
+            // _getBeneficiary(beneficiary)
         );
 
         // BOND.buy doesn't return any value, so we need to calculate the purchased amount
@@ -383,11 +379,13 @@ contract MusingZap is Context {
         );
     }
 
-    function _receiveAndSwapToWavax(
-        address from,
-        uint256 amountIn,
-        address beneficiary
-    ) internal returns (uint256) {
+    function _receiveAndSwapToWavax(address from, uint256 amountIn)
+        internal
+        returns (
+            // address beneficiary
+            uint256
+        )
+    {
         // First, pull tokens to this contract
         IERC20 token = IERC20(from);
         require(
@@ -409,10 +407,9 @@ contract MusingZap is Context {
 
         // Sell tokens to WAVAX
         // NOTE: ignore minRefund (set as 0) for now, we should check it later on zapOut
-        BOND.sell(from, amountIn, 0, _getBeneficiary(beneficiary));
-        IERC20 wavaxToken = IERC20(WAVAX_CONTRACT);
+        uint256 refundAmount = BOND.sell(from, amountIn, 0); //_getBeneficiary(beneficiary)
 
-        return wavaxToken.balanceOf(address(this));
+        return refundAmount;
     }
 
     function _getPathToWavax(address from)
@@ -491,15 +488,15 @@ contract MusingZap is Context {
     }
 
     // Prevent self referral
-    function _getBeneficiary(address beneficiary)
-        internal
-        view
-        returns (address)
-    {
-        if (beneficiary == address(0) || beneficiary == _msgSender()) {
-            return DEFAULT_BENEFICIARY;
-        } else {
-            return beneficiary;
-        }
-    }
+    // function _getBeneficiary(address beneficiary)
+    //     internal
+    //     view
+    //     returns (address)
+    // {
+    //     if (beneficiary == address(0) || beneficiary == _msgSender()) {
+    //         return DEFAULT_BENEFICIARY;
+    //     } else {
+    //         return beneficiary;
+    //     }
+    // }
 }

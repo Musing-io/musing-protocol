@@ -24,16 +24,14 @@ interface IEconomyBond {
     function buy(
         address tokenAddress,
         uint256 reserveAmount,
-        uint256 minReward,
-        address beneficiary
-    ) external;
+        uint256 minReward
+    ) external returns (uint256);
 
     function sell(
         address tokenAddress,
         uint256 tokenAmount,
-        uint256 minRefund,
-        address beneficiary
-    ) external;
+        uint256 minRefund
+    ) external returns (uint256);
 
     function createToken(
         string memory name,
